@@ -1,0 +1,57 @@
+from rest_framework import serializers
+from .models import Movie, Genre, Actor, MovieCast
+
+
+class GenreSerializer(serializers.ModelSerializer):
+    """Сериализатор для жанров"""
+    class Meta:
+        model = Genre
+        fields = ['id', 'name']
+
+
+class ActorSerializer(serializers.ModelSerializer):
+    """Сериализатор для актёров"""
+    class Meta:
+        model = Actor
+        fields = ['id', 'name', 'profile_path']
+
+
+class MovieCastSerializer(serializers.ModelSerializer):
+    """Сериализатор для актёрского состава"""
+    id = serializers.IntegerField(source='actor.id', read_only=True)
+    name = serializers.CharField(source='actor.name', read_only=True)
+    profile_path = serializers.URLField(source='actor.profile_path', read_only=True)
+
+    class Meta:
+        model = MovieCast
+        fields = ['id', 'name', 'character', 'profile_path']
+
+
+class MovieListSerializer(serializers.ModelSerializer):
+    """Сериализатор для списка фильмов"""
+    genre_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Movie
+        fields = [
+            'id', 'title', 'overview', 'poster_path', 'backdrop_path',
+            'rating', 'release_date', 'vote_count', 'genre_ids'
+        ]
+
+    def get_genre_ids(self, obj):
+        return list(obj.genres.values_list('id', flat=True))
+
+
+class MovieDetailSerializer(serializers.ModelSerializer):
+    """Сериализатор для деталей фильма"""
+    genre_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Movie
+        fields = [
+            'id', 'title', 'overview', 'poster_path', 'backdrop_path',
+            'rating', 'release_date', 'vote_count', 'genre_ids'
+        ]
+
+    def get_genre_ids(self, obj):
+        return list(obj.genres.values_list('id', flat=True))
