@@ -11,8 +11,10 @@ class Command(BaseCommand):
     help = 'Заполняет базу данных тестовыми фильмами, жанрами и актёрами'
 
     def handle(self, *args, **options):
-        # База URL для постеров (статика Django)
+        # База URL для статики
         POSTER_BASE = '/static/movies/posters/'
+        BACKDROP_BASE = '/static/movies/backdrops/'
+        ACTOR_BASE = '/static/movies/actors/'
 
         # Создаём жанры
         genres_data = [
@@ -26,16 +28,29 @@ class Command(BaseCommand):
             genres[name] = genre
             self.stdout.write(f"Жанр: {name}")
 
-        # Создаём актёров
+        # Создаём актёров с фото
         actors_data = [
-            'Леонардо ДиКаприо', 'Кристиан Бэйл', 'Мэттью МакКонахи', 
-            'Киану Ривз', 'Рассел Кроу', 'Том Хэнкс', 'Брэд Питт', 
-            'Морган Фриман', 'Энн Хэтэуэй', 'Хоакин Феникс'
+            ('Леонардо ДиКаприо', f'{ACTOR_BASE}dicaprio.png'),
+            ('Кристиан Бэйл', f'{ACTOR_BASE}bale.png'),
+            ('Мэттью МакКонахи', f'{ACTOR_BASE}mcconaughey.png'),
+            ('Киану Ривз', f'{ACTOR_BASE}reeves.png'),
+            ('Рассел Кроу', f'{ACTOR_BASE}crowe.png'),
+            ('Том Хэнкс', f'{ACTOR_BASE}hanks.png'),
+            ('Брэд Питт', f'{ACTOR_BASE}pitt.png'),
+            ('Морган Фриман', f'{ACTOR_BASE}freeman.png'),
+            ('Энн Хэтэуэй', f'{ACTOR_BASE}hathaway.png'),
+            ('Хоакин Феникс', f'{ACTOR_BASE}phoenix.png'),
         ]
 
         actors = {}
-        for name in actors_data:
-            actor, _ = Actor.objects.get_or_create(name=name)
+        for name, profile_path in actors_data:
+            actor, created = Actor.objects.get_or_create(
+                name=name,
+                defaults={'profile_path': profile_path}
+            )
+            if not created and actor.profile_path != profile_path:
+                actor.profile_path = profile_path
+                actor.save()
             actors[name] = actor
             self.stdout.write(f"Актёр: {name}")
 
@@ -45,6 +60,7 @@ class Command(BaseCommand):
                 'title': 'Начало',
                 'overview': 'Кобб — талантливый вор, лучший в опасном искусстве извлечения: кражи ценных секретов из глубин подсознания во время сна.',
                 'poster_path': f'{POSTER_BASE}inception.png',
+                'backdrop_path': f'{BACKDROP_BASE}inception.png',
                 'rating': 8.8,
                 'release_date': date(2010, 7, 16),
                 'vote_count': 34521,
@@ -55,6 +71,7 @@ class Command(BaseCommand):
                 'title': 'Тёмный рыцарь',
                 'overview': 'Бэтмен поднимает ставки в войне с криминалом. С помощью лейтенанта Гордона и прокурора Харви Дента он намерен очистить улицы Готэма.',
                 'poster_path': f'{POSTER_BASE}dark_knight.png',
+                'backdrop_path': None,
                 'rating': 9.0,
                 'release_date': date(2008, 7, 18),
                 'vote_count': 30891,
@@ -65,6 +82,7 @@ class Command(BaseCommand):
                 'title': 'Интерстеллар',
                 'overview': 'Когда засуха, пыльные бури и вымирание растений приводят человечество к продовольственному кризису, команда исследователей отправляется через червоточину.',
                 'poster_path': f'{POSTER_BASE}interstellar.png',
+                'backdrop_path': None,
                 'rating': 8.7,
                 'release_date': date(2014, 11, 7),
                 'vote_count': 32456,
@@ -75,6 +93,7 @@ class Command(BaseCommand):
                 'title': 'Матрица',
                 'overview': 'Хакер Нео узнаёт, что его мир — виртуальная реальность, созданная машинами для порабощения людей. Ему предстоит стать избранным.',
                 'poster_path': f'{POSTER_BASE}matrix.png',
+                'backdrop_path': None,
                 'rating': 8.7,
                 'release_date': date(1999, 3, 31),
                 'vote_count': 24567,
@@ -85,6 +104,7 @@ class Command(BaseCommand):
                 'title': 'Гладиатор',
                 'overview': 'Генерал Максимус, преданный императором, становится рабом и гладиатором. Его единственная цель — месть.',
                 'poster_path': f'{POSTER_BASE}gladiator.png',
+                'backdrop_path': None,
                 'rating': 8.5,
                 'release_date': date(2000, 5, 5),
                 'vote_count': 16789,
@@ -95,6 +115,7 @@ class Command(BaseCommand):
                 'title': 'Форрест Гамп',
                 'overview': 'Сидя на скамейке, Форрест Гамп рассказывает случайным встречным историю своей необыкновенной жизни.',
                 'poster_path': f'{POSTER_BASE}forrest_gump.png',
+                'backdrop_path': None,
                 'rating': 8.8,
                 'release_date': date(1994, 7, 6),
                 'vote_count': 25678,
@@ -105,6 +126,7 @@ class Command(BaseCommand):
                 'title': 'Бойцовский клуб',
                 'overview': 'Офисный работник страдает от бессонницы. Случайная встреча с продавцом мыла меняет его жизнь навсегда.',
                 'poster_path': f'{POSTER_BASE}fight_club.png',
+                'backdrop_path': None,
                 'rating': 8.8,
                 'release_date': date(1999, 10, 15),
                 'vote_count': 27890,
@@ -115,6 +137,7 @@ class Command(BaseCommand):
                 'title': 'Джокер',
                 'overview': 'Готэм, начало 1980-х. Комик Артур Флек живёт с больной матерью. Однажды он оказывается втянут в череду трагических событий.',
                 'poster_path': f'{POSTER_BASE}joker.png',
+                'backdrop_path': None,
                 'rating': 8.4,
                 'release_date': date(2019, 10, 4),
                 'vote_count': 23456,
@@ -125,6 +148,7 @@ class Command(BaseCommand):
                 'title': 'Побег из Шоушенка',
                 'overview': 'Бухгалтер Энди Дюфрейн обвинён в убийстве собственной жены и её любовника. Несмотря на невиновность, он приговорён к пожизненному заключению.',
                 'poster_path': f'{POSTER_BASE}shawshank.png',
+                'backdrop_path': None,
                 'rating': 9.3,
                 'release_date': date(1994, 9, 23),
                 'vote_count': 25789,
@@ -135,6 +159,7 @@ class Command(BaseCommand):
                 'title': 'Леон',
                 'overview': 'Профессиональный убийца Леон берёт под опеку 12-летнюю Матильду, семью которой убили коррумпированные полицейские.',
                 'poster_path': f'{POSTER_BASE}leon.png',
+                'backdrop_path': None,
                 'rating': 8.5,
                 'release_date': date(1994, 9, 14),
                 'vote_count': 12345,
@@ -149,15 +174,17 @@ class Command(BaseCommand):
                 defaults={
                     'overview': movie_data['overview'],
                     'poster_path': movie_data['poster_path'],
+                    'backdrop_path': movie_data['backdrop_path'],
                     'rating': movie_data['rating'],
                     'release_date': movie_data['release_date'],
                     'vote_count': movie_data['vote_count'],
                 }
             )
             
-            # Обновляем poster_path если фильм уже существует
-            if not created and movie.poster_path != movie_data['poster_path']:
+            # Обновляем пути если фильм уже существует
+            if not created:
                 movie.poster_path = movie_data['poster_path']
+                movie.backdrop_path = movie_data['backdrop_path']
                 movie.save()
             
             for genre_name in movie_data['genres']:
