@@ -94,8 +94,8 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
     @extend_schema(
-        summary="Поиск фильмов",
-        description="Поиск фильмов по названию и описанию.",
+        summary="Умный поиск фильмов",
+        description="Поиск фильмов по названию, описанию, имени актёра, персонажу и жанру.",
         parameters=[
             OpenApiParameter(name='q', description='Поисковый запрос', type=OpenApiTypes.STR, required=True),
         ],
@@ -104,11 +104,19 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     )
     @action(detail=False, methods=['get'])
     def search(self, request):
-        """Поиск фильмов по названию и описанию"""
+        """Умный поиск фильмов по названию, описанию, актёрам, персонажам и жанрам"""
         query = request.query_params.get('q', '')
+        if not query:
+            return Response({'results': []})
+        
         queryset = self.queryset.filter(
-            Q(title__icontains=query) | Q(overview__icontains=query)
-        )
+            Q(title__icontains=query) |                    # По названию
+            Q(overview__icontains=query) |                 # По описанию
+            Q(cast__actor__name__icontains=query) |        # По имени актёра
+            Q(cast__character__icontains=query) |          # По имени персонажа
+            Q(genres__name__icontains=query)               # По названию жанра
+        ).distinct()
+        
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = MovieListSerializer(page, many=True)
