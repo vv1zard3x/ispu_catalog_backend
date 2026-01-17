@@ -1,4 +1,50 @@
 from django.db import models
+from django.core.files.base import ContentFile
+from PIL import Image
+from io import BytesIO
+import os
+
+
+def compress_image(image_field, max_size_mb=5, max_resolution=2048):
+    """
+    Сжимает изображение до указанного размера и разрешения.
+    max_size_mb: максимальный размер файла в МБ
+    max_resolution: максимальное разрешение (ширина или высота)
+    """
+    if not image_field:
+        return image_field
+    
+    img = Image.open(image_field)
+    
+    # Конвертируем в RGB если нужно (для JPEG)
+    if img.mode in ('RGBA', 'P'):
+        img = img.convert('RGB')
+    
+    # Уменьшаем размер если превышает max_resolution
+    if img.width > max_resolution or img.height > max_resolution:
+        ratio = min(max_resolution / img.width, max_resolution / img.height)
+        new_size = (int(img.width * ratio), int(img.height * ratio))
+        img = img.resize(new_size, Image.Resampling.LANCZOS)
+    
+    # Сжимаем до нужного размера файла
+    max_size_bytes = max_size_mb * 1024 * 1024
+    quality = 95
+    
+    while quality > 10:
+        buffer = BytesIO()
+        img.save(buffer, format='JPEG', quality=quality, optimize=True)
+        size = buffer.tell()
+        
+        if size <= max_size_bytes:
+            break
+        quality -= 5
+    
+    buffer.seek(0)
+    
+    # Меняем расширение на .jpg
+    name = os.path.splitext(image_field.name)[0] + '.jpg'
+    
+    return ContentFile(buffer.read(), name=name)
 
 
 class Genre(models.Model):
@@ -37,6 +83,12 @@ class Actor(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Сжимаем изображение при сохранении
+        if self.profile_image:
+            self.profile_image = compress_image(self.profile_image)
+        super().save(*args, **kwargs)
 
     def get_profile_url(self):
         """Возвращает URL фото: загруженное или указанный путь"""
@@ -85,6 +137,14 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        # Сжимаем изображения при сохранении
+        if self.poster_image:
+            self.poster_image = compress_image(self.poster_image)
+        if self.backdrop_image:
+            self.backdrop_image = compress_image(self.backdrop_image)
+        super().save(*args, **kwargs)
 
     def get_poster_url(self):
         """Возвращает URL постера: загруженное или указанный путь"""

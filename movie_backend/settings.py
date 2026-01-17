@@ -13,6 +13,10 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 # Allowed hosts
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'films.vv1zard3x.ru,localhost,127.0.0.1').split(',')
 
+# File upload settings (увеличиваем лимит до 50MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+
 # Application definition
 INSTALLED_APPS = [
     "jazzmin",
