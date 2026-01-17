@@ -19,6 +19,8 @@ ENV/
 local_settings.py
 db.sqlite3
 media/
+staticfiles/
+data/
 
 # IDE
 .vscode/
@@ -30,6 +32,10 @@ media/
 .DS_Store
 Thumbs.db
 
+# Environment
+.env
+
 # Other
 *.bak
 populate_movies.py
+
