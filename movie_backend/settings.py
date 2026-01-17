@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "django_filters",
+    "drf_spectacular",
     # Local
     "movies",
 ]
@@ -120,6 +121,38 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# API Documentation (drf-spectacular)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Кинокаталог API',
+    'DESCRIPTION': '''API для мобильного приложения "Кинокаталог".
+
+## Возможности
+- Получение списка фильмов с пагинацией
+- Фильтрация по жанрам, актёрам, году выхода, рейтингу
+- Поиск фильмов по названию и описанию
+- Получение детальной информации о фильме
+- Получение актёрского состава фильма
+- Списки жанров и актёров
+
+## Фильтрация фильмов
+- `?genre=1` — по ID жанра
+- `?actor=1` — по ID актёра
+- `?year=2024` — по году выхода
+- `?min_rating=8.0` — минимальный рейтинг
+- `?search=текст` — поиск по названию/описанию
+- `?ordering=-rating` — сортировка (rating, -rating, release_date, -release_date, vote_count, title)
+''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'TAGS': [
+        {'name': 'movies', 'description': 'Операции с фильмами'},
+        {'name': 'genres', 'description': 'Операции с жанрами'},
+        {'name': 'actors', 'description': 'Операции с актёрами'},
     ],
 }
 
