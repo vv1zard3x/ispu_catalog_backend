@@ -1,0 +1,19 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - sqlite_data:/app/data
+    environment:
+      - DEBUG=True
+      - DJANGO_SETTINGS_MODULE=movie_backend.settings
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py populate_movies || true &&
+             daphne -b 0.0.0.0 -p 8000 movie_backend.asgi:application"
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
