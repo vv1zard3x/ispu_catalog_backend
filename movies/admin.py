@@ -163,13 +163,13 @@ class MovieCastAdmin(admin.ModelAdmin):
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
     """Админка для настроек сайта"""
-    list_display = ['__str__', 'has_kinopoisk_token']
+    list_display = ['__str__', 'token_status']
     
-    def has_kinopoisk_token(self, obj):
+    def token_status(self, obj):
         if obj.kinopoisk_api_token:
-            return format_html('<span style="color: green;">✓ Настроен</span>')
-        return format_html('<span style="color: red;">✗ Не настроен</span>')
-    has_kinopoisk_token.short_description = "Kinopoisk API"
+            return "✓ Настроен"
+        return "✗ Не настроен"
+    token_status.short_description = "Kinopoisk API"
     
     def has_add_permission(self, request):
         # Разрешаем создание только если настроек ещё нет
@@ -178,4 +178,5 @@ class SiteSettingsAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Запрещаем удаление настроек
         return False
+
 
