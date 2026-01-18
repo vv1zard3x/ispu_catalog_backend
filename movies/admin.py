@@ -116,7 +116,7 @@ class MovieAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('import-kinopoisk/', self.admin_site.admin_view(self.import_kinopoisk_view), name='import-kinopoisk'),
+            path('import-kinopoisk/', self.admin_site.admin_view(self.import_kinopoisk_view), name='movies_movie_import_kinopoisk'),
         ]
         return custom_urls + urls
 
