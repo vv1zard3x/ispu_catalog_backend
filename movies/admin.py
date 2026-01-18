@@ -133,7 +133,7 @@ class MovieAdmin(admin.ModelAdmin):
                     movie = service.import_from_url(url)
                     self.message_user(
                         request, 
-                        format_html(f'Фильм "<b>{movie.title}</b>" успешно импортирован!'), 
+                        format_html('Фильм "<b>{}</b>" успешно импортирован!', movie.title), 
                         level=messages.SUCCESS
                     )
                     # Не редиректим, а показываем превью
@@ -143,8 +143,6 @@ class MovieAdmin(admin.ModelAdmin):
                     self.message_user(request, f"Ошибка импорта: {str(e)}", level=messages.ERROR)
                     context['kinopoisk_url'] = url
                 except Exception as e:
-                    import traceback
-                    traceback.print_exc()
                     self.message_user(request, f"Неизвестная ошибка: {str(e)}", level=messages.ERROR)
                     context['kinopoisk_url'] = url
         
