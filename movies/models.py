@@ -182,3 +182,39 @@ class MovieCast(models.Model):
 
     def __str__(self):
         return f"{self.actor.name} как {self.character}"
+
+
+class SiteSettings(models.Model):
+    """Настройки сайта (singleton)"""
+    kinopoisk_api_token = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Kinopoisk API токен",
+        help_text="Получите токен на https://kinopoiskapiunofficial.tech"
+    )
+
+    class Meta:
+        verbose_name = "Настройки"
+        verbose_name_plural = "Настройки"
+
+    def __str__(self):
+        return "Настройки сайта"
+
+    def save(self, *args, **kwargs):
+        # Singleton pattern - всегда используем id=1
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        """Получает или создаёт единственный экземпляр настроек"""
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+
+    @classmethod
+    def get_kinopoisk_token(cls):
+        """Возвращает токен Kinopoisk API"""
+        settings = cls.get_settings()
+        return settings.kinopoisk_api_token
+

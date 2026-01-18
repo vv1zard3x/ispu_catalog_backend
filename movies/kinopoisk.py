@@ -8,7 +8,7 @@ import requests
 from datetime import datetime
 from django.conf import settings
 from django.core.files.base import ContentFile
-from .models import Genre, Actor, Movie, MovieCast
+from .models import Genre, Actor, Movie, MovieCast, SiteSettings
 
 
 class KinopoiskImportError(Exception):
@@ -22,12 +22,17 @@ class KinopoiskService:
     BASE_URL = "https://kinopoiskapiunofficial.tech/api/v2.2"
     
     def __init__(self):
-        # Читаем токен из settings.py
-        self.api_token = getattr(settings, 'KINOPOISK_API_TOKEN', None)
+        # Сначала пробуем получить токен из БД (настройки в админке)
+        self.api_token = SiteSettings.get_kinopoisk_token()
+        
+        # Fallback на settings.py
+        if not self.api_token:
+            self.api_token = getattr(settings, 'KINOPOISK_API_TOKEN', None)
+        
         if not self.api_token:
             raise KinopoiskImportError(
-                "KINOPOISK_API_TOKEN не настроен в settings.py. "
-                "Добавьте KINOPOISK_API_TOKEN = 'ваш_токен' в movie_backend/settings.py"
+                "KINOPOISK_API_TOKEN не настроен. "
+                "Перейдите в Админка → Настройки и укажите токен."
             )
     
     def _get_headers(self):

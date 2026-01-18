@@ -3,7 +3,7 @@ from django.urls import path
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.utils.html import format_html
-from .models import Genre, Actor, Movie, MovieCast
+from .models import Genre, Actor, Movie, MovieCast, SiteSettings
 from .kinopoisk import KinopoiskService, KinopoiskImportError
 
 
@@ -158,3 +158,24 @@ class MovieCastAdmin(admin.ModelAdmin):
             return format_html('<img src="{}" style="max-height: 40px; max-width: 40px; border-radius: 50%;"/>', url)
         return "-"
     actor_preview.short_description = "Фото"
+
+
+@admin.register(SiteSettings)
+class SiteSettingsAdmin(admin.ModelAdmin):
+    """Админка для настроек сайта"""
+    list_display = ['__str__', 'has_kinopoisk_token']
+    
+    def has_kinopoisk_token(self, obj):
+        if obj.kinopoisk_api_token:
+            return format_html('<span style="color: green;">✓ Настроен</span>')
+        return format_html('<span style="color: red;">✗ Не настроен</span>')
+    has_kinopoisk_token.short_description = "Kinopoisk API"
+    
+    def has_add_permission(self, request):
+        # Разрешаем создание только если настроек ещё нет
+        return not SiteSettings.objects.exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        # Запрещаем удаление настроек
+        return False
+
