@@ -143,6 +143,8 @@ class MovieAdmin(admin.ModelAdmin):
                     self.message_user(request, f"Ошибка импорта: {str(e)}", level=messages.ERROR)
                     context['kinopoisk_url'] = url
                 except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                     self.message_user(request, f"Неизвестная ошибка: {str(e)}", level=messages.ERROR)
                     context['kinopoisk_url'] = url
         
