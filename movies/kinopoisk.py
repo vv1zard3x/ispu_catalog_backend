@@ -22,11 +22,12 @@ class KinopoiskService:
     BASE_URL = "https://kinopoiskapiunofficial.tech/api/v2.2"
     
     def __init__(self):
-        self.api_token = getattr(settings, 'KINOPOISK_API_TOKEN', None) or os.environ.get('KINOPOISK_API_TOKEN')
+        # Читаем токен из settings.py
+        self.api_token = getattr(settings, 'KINOPOISK_API_TOKEN', None)
         if not self.api_token:
             raise KinopoiskImportError(
-                "KINOPOISK_API_TOKEN не настроен. "
-                "Получите токен на https://kinopoiskapiunofficial.tech и добавьте в .env"
+                "KINOPOISK_API_TOKEN не настроен в settings.py. "
+                "Добавьте KINOPOISK_API_TOKEN = 'ваш_токен' в movie_backend/settings.py"
             )
     
     def _get_headers(self):
