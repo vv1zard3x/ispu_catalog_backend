@@ -153,7 +153,7 @@ class MovieAdmin(admin.ModelAdmin):
             'fields': ('title', 'name_original', 'type', 'kinopoisk_id', 'imdb_id')
         }),
         ('Описание', {
-            'fields': ('slogan', 'overview', 'countries', 'genres')
+            'fields': ('slogan', 'overview', 'countries', 'genres', 'trailer_url')
         }),
         ('Характеристики', {
             'fields': ('film_length', 'age_rating', 'rating', 'vote_count', 'release_date'),

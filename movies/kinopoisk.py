@@ -83,6 +83,17 @@ class KinopoiskService:
             pass
         return []
 
+    async def fetch_film_videos(self, client: httpx.AsyncClient, film_id: int) -> dict:
+        """Асинхронно получает видео (трейлеры/тизеры)"""
+        url = f"{self.BASE_URL}/films/{film_id}/videos"
+        try:
+            response = await client.get(url, headers=self._get_headers(), timeout=15)
+            if response.status_code == 200:
+                return response.json()
+        except Exception:
+            pass
+        return {}
+
     def _get_or_create_genres(self, genres_data: list) -> list:
         """Создаёт или получает жанры"""
         genres = []
@@ -191,7 +202,7 @@ class KinopoiskService:
         # Проще всего: получить данные асинхронно, а сохранять синхронно ПОСЛЕ завершения async блока.
         return self._process_and_save(film_id, film_data, staff_data)
 
-    def _process_and_save(self, film_id: int, film_data: dict, staff_data: list) -> Movie:
+    def _process_and_save(self, film_id: int, film_data: dict, staff_data: list, videos_data: dict = None) -> Movie:
         """Синхронная обработка и сохранение"""
         
         title = film_data.get('nameRu') or film_data.get('nameOriginal') or film_data.get('nameEn')
@@ -214,6 +225,17 @@ class KinopoiskService:
             'age_rating': self._parse_age_limit(film_data.get('ratingAgeLimits')),
             'type': film_data.get('type'),
         }
+
+        # Извлекаем трейлер
+        if videos_data and 'items' in videos_data:
+            for item in videos_data['items']:
+                # Приоритет YouTube
+                if item.get('site') == 'YOUTUBE':
+                    defaults['trailer_url'] = item.get('url')
+                    break
+            # Если YouTube не нашли, берем первый попавшийся
+            if 'trailer_url' not in defaults and videos_data['items']:
+                defaults['trailer_url'] = videos_data['items'][0].get('url')
 
         # Логика поиска дубликатов:
         # 1. По kinopoisk_id
@@ -280,14 +302,15 @@ class KinopoiskService:
             async with httpx.AsyncClient() as client:
                 film_task = self.fetch_film_data(client, film_id)
                 staff_task = self.fetch_film_staff(client, film_id)
-                return await asyncio.gather(film_task, staff_task)
+                videos_task = self.fetch_film_videos(client, film_id)
+                return await asyncio.gather(film_task, staff_task, videos_task)
 
         try:
-           film_data, staff_data = async_to_sync(fetch_all)()
+           film_data, staff_data, videos_data = async_to_sync(fetch_all)()
         except Exception as e:
             # Если async_to_sync не сработает (например внутри другого loop),
             # можно попробовать asyncio.run, но async_to_sync надежнее для Django.
              raise KinopoiskImportError(f"Ошибка получения данных: {e}")
 
         # 2. Сохраняем синхронно (чтобы не блокировать подключение к БД в async контексте без нужды)
-        return self._process_and_save(film_id, film_data, staff_data)
+        return self._process_and_save(film_id, film_data, staff_data, videos_data)

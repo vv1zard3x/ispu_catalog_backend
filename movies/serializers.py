@@ -62,7 +62,7 @@ class MovieListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'name_original', 'overview', 'poster_path', 'backdrop_path',
             'rating', 'release_date', 'vote_count', 'genre_ids', 'countries', 
-            'age_rating', 'film_length', 'type'
+            'age_rating', 'film_length', 'type', 'trailer_url'
         ]
 
     def get_genre_ids(self, obj):
@@ -90,7 +90,7 @@ class MovieDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'name_original', 'overview', 'poster_path', 'backdrop_path',
             'rating', 'release_date', 'vote_count', 'genres', 'countries',
             'slogan', 'film_length', 'age_rating', 'type', 'imdb_id', 'kinopoisk_id',
-            'sources', 'cast'
+            'sources', 'cast', 'trailer_url'
         ]
 
     def get_cast(self, obj):

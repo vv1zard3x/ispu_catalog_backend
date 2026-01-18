@@ -169,6 +169,7 @@ class Movie(models.Model):
         verbose_name="Тип (FILM, TV_SHOW и т.д.)"
     )
     countries = models.ManyToManyField(Country, related_name='movies', verbose_name="Страны", blank=True)
+    trailer_url = models.URLField(blank=True, null=True, verbose_name="Ссылка на трейлер")
 
     class Meta:
         verbose_name = "Фильм"
