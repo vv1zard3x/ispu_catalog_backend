@@ -1,14 +1,16 @@
 """
 Сервис для импорта фильмов с Кинопоиска
 Использует неофициальный API: https://kinopoiskapiunofficial.tech
+Теперь поддерживает асинхронные запросы для ускорения работы.
 """
 import re
-import os
-import requests
+import asyncio
+import httpx
 from datetime import datetime
+from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.core.files.base import ContentFile
-from .models import Genre, Actor, Movie, MovieCast, SiteSettings
+from .models import Genre, Actor, Movie, MovieCast, SiteSettings, Country
 
 
 class KinopoiskImportError(Exception):
@@ -44,217 +46,248 @@ class KinopoiskService:
     
     @staticmethod
     def extract_id_from_url(url: str) -> int:
-        """
-        Извлекает ID фильма из URL Кинопоиска
-        
-        Поддерживаемые форматы:
-        - https://www.kinopoisk.ru/film/435/
-        - https://www.kinopoisk.ru/series/6058297/
-        - https://kinopoisk.ru/film/435
-        """
-        # Паттерн для извлечения числового ID
+        """Извлекает ID фильма из URL Кинопоиска"""
         patterns = [
             r'kinopoisk\.ru/(?:film|series)/(\d+)',
             r'kinopoisk\.ru/(?:film|series)/(\d+)/',
         ]
-        
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
                 return int(match.group(1))
-        
-        raise KinopoiskImportError(
-            f"Не удалось извлечь ID из URL: {url}. "
-            "Ожидается формат: https://www.kinopoisk.ru/film/435/ или https://www.kinopoisk.ru/series/6058297/"
-        )
+        raise KinopoiskImportError(f"Не удалось извлечь ID из URL: {url}")
     
-    def get_film_data(self, film_id: int) -> dict:
-        """Получает данные о фильме по ID"""
+    async def fetch_film_data(self, client: httpx.AsyncClient, film_id: int) -> dict:
+        """Асинхронно получает данные о фильме"""
         url = f"{self.BASE_URL}/films/{film_id}"
-        
-        try:
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
-        except requests.RequestException as e:
-            raise KinopoiskImportError(f"Ошибка при запросе к API: {e}")
+        response = await client.get(url, headers=self._get_headers(), timeout=15)
         
         if response.status_code == 401:
-            raise KinopoiskImportError("Неверный API токен. Проверьте KINOPOISK_API_TOKEN")
+            raise KinopoiskImportError("Неверный API токен.")
         elif response.status_code == 404:
-            raise KinopoiskImportError(f"Фильм с ID {film_id} не найден на Кинопоиске")
+            raise KinopoiskImportError(f"Фильм с ID {film_id} не найден.")
         elif response.status_code != 200:
             raise KinopoiskImportError(f"API вернул ошибку: {response.status_code}")
-        
+            
         return response.json()
     
-    def get_film_staff(self, film_id: int) -> list:
-        """Получает актёрский состав фильма"""
+    async def fetch_film_staff(self, client: httpx.AsyncClient, film_id: int) -> list:
+        """Асинхронно получает актёрский состав"""
         url = f"{self.BASE_URL.replace('v2.2', 'v1')}/staff"
         params = {"filmId": film_id}
-        
         try:
-            response = requests.get(url, headers=self._get_headers(), params=params, timeout=10)
-        except requests.RequestException as e:
-            # Не критичная ошибка - фильм можно создать без актёров
-            return []
-        
-        if response.status_code != 200:
-            return []
-        
-        return response.json()
-    
-    def _download_image(self, url: str) -> ContentFile | None:
-        """Скачивает изображение по URL"""
-        if not url:
-            return None
-        
-        try:
-            response = requests.get(url, timeout=15)
+            response = await client.get(url, headers=self._get_headers(), params=params, timeout=15)
             if response.status_code == 200:
-                # Извлекаем имя файла из URL
-                filename = url.split('/')[-1]
-                if not filename or '.' not in filename:
-                    filename = "image.jpg"
-                return ContentFile(response.content, name=filename)
-        except requests.RequestException:
+                return response.json()
+        except Exception:
             pass
-        
-        return None
-    
+        return []
+
     def _get_or_create_genres(self, genres_data: list) -> list:
         """Создаёт или получает жанры"""
         genres = []
         for genre_info in genres_data:
             genre_name = genre_info.get('genre', '').strip()
             if genre_name:
-                # Первая буква заглавная
-                genre_name = genre_name.capitalize()
-                genre, _ = Genre.objects.get_or_create(name=genre_name)
+                genre, _ = Genre.objects.get_or_create(name=genre_name.capitalize())
                 genres.append(genre)
         return genres
+
+    def _get_or_create_countries(self, countries_data: list) -> list:
+        """Создаёт или получает страны"""
+        countries = []
+        for country_info in countries_data:
+            name = country_info.get('country', '').strip()
+            if name:
+                country, _ = Country.objects.get_or_create(name=name)
+                countries.append(country)
+        return countries
     
     def _get_or_create_actor(self, actor_data: dict) -> Actor | None:
         """Создаёт или получает актёра"""
+        kinopoisk_id = actor_data.get('staffId')  # Используем ID если есть
         name = actor_data.get('nameRu') or actor_data.get('nameEn')
-        if not name:
+        
+        if not name and not kinopoisk_id:
             return None
+
+        # Пытаемся найти по ID
+        actor = None
+        if kinopoisk_id:
+            actor = Actor.objects.filter(kinopoisk_id=kinopoisk_id).first()
         
-        actor, created = Actor.objects.get_or_create(
-            name=name.strip(),
-            defaults={'profile_path': actor_data.get('posterUrl')}
-        )
-        
-        # Если актёр уже существует, но нет фото — обновляем
-        if not created and not actor.profile_path and not actor.profile_image:
-            poster_url = actor_data.get('posterUrl')
-            if poster_url:
-                actor.profile_path = poster_url
+        # Если не нашли по ID, ищем по имени
+        if not actor and name:
+            actor = Actor.objects.filter(name__iexact=name.strip()).first()
+            # Если нашли по имени, проставим ID
+            if actor and kinopoisk_id and not actor.kinopoisk_id:
+                actor.kinopoisk_id = kinopoisk_id
                 actor.save()
-        
+
+        # Если так и не нашли - создаём
+        if not actor:
+            poster_url = actor_data.get('posterUrl')
+            actor = Actor.objects.create(
+                name=name.strip() if name else "Неизвестный актёр",
+                kinopoisk_id=kinopoisk_id,
+                profile_path=poster_url
+            )
+        else:
+            # Обновляем фото если нет
+            if not actor.profile_path and not actor.profile_image:
+                poster_url = actor_data.get('posterUrl')
+                if poster_url:
+                    actor.profile_path = poster_url
+                    actor.save()
+                    
         return actor
-    
-    def import_from_url(self, url: str) -> Movie:
-        """
-        Импортирует фильм из URL Кинопоиска
+
+    def _parse_age_limit(self, age_str: str | None) -> int | None:
+        if not age_str:
+            return None
+        match = re.search(r'\d+', age_str)
+        if match:
+            return int(match.group())
+        return None
+
+    def parse_date(self, film_data: dict) -> datetime.date:
+        year = film_data.get('year')
+        try:
+            premiere = film_data.get('premiereWorld') or film_data.get('premiereRu')
+            if premiere:
+                return datetime.strptime(premiere, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass
         
-        Args:
-            url: URL фильма на Кинопоиске
-            
-        Returns:
-            Созданный или обновлённый объект Movie
-        """
-        # Извлекаем ID
+        if year:
+            return datetime(int(year), 1, 1).date()
+        return datetime.now().date()
+
+    async def _import_from_url_async(self, url: str) -> Movie:
+        """Асинхронная реализация импорта"""
         film_id = self.extract_id_from_url(url)
         
-        # Получаем данные о фильме
-        film_data = self.get_film_data(film_id)
+        async with httpx.AsyncClient() as client:
+            # Параллельный запуск запросов
+            film_task = self.fetch_film_data(client, film_id)
+            staff_task = self.fetch_film_staff(client, film_id)
+            
+            film_data, staff_data = await asyncio.gather(film_task, staff_task)
+
+        # Обработка данных (синхронная часть, работа с БД)
+        return await async_to_sync(self._save_movie_data)(film_id, film_data, staff_data)
+
+    async def _save_movie_data(self, film_id: int, film_data: dict, staff_data: list) -> Movie:
+        """Сохранение данных в БД (вызывается из асинхронной функции)"""
+        # Эта функция должна быть обычной синхронной, но async_to_sync ждет awaitable?
+        # Нет, async_to_sync превращает async в sync.
+        # Внутри async функции нельзя вызывать Django ORM без sync_to_async_adapter, или просто вынести в sync функцию.
+        # Лучше я сделаю этот метод синхронным и буду вызывать его, но Python async function can't just call sync code directly without blocking loop?
+        # В данном случае, мы запускаем loop через async_to_sync в public методе.
+        # Значит, внутри _import_from_url_async (которая бежит в loop) я не могу делать блокирующие вызовы ORM напрямую безопасно.
+        # Поэтому лучше всю логику сохранения вынести в отдельный синхронный метод и вызвать его через sync_to_async? 
+        # Или, раз уж мы используем async_to_sync на верхнем уровне, то loop блокируется? 
+        # Нет, async_to_sync запускает loop.
+        # Проще всего: получить данные асинхронно, а сохранять синхронно ПОСЛЕ завершения async блока.
+        return self._process_and_save(film_id, film_data, staff_data)
+
+    def _process_and_save(self, film_id: int, film_data: dict, staff_data: list) -> Movie:
+        """Синхронная обработка и сохранение"""
         
-        # Подготавливаем данные
         title = film_data.get('nameRu') or film_data.get('nameOriginal') or film_data.get('nameEn')
         if not title:
             raise KinopoiskImportError("Не удалось получить название фильма")
+
+        release_date = self.parse_date(film_data)
         
-        overview = film_data.get('description') or film_data.get('shortDescription') or ''
+        # Подготовка полей
+        defaults = {
+            'overview': film_data.get('description') or film_data.get('shortDescription') or '',
+            'rating': float(film_data.get('ratingKinopoisk') or film_data.get('ratingImdb') or 0.0),
+            'vote_count': int(film_data.get('ratingKinopoiskVoteCount') or film_data.get('ratingImdbVoteCount') or 0),
+            'poster_path': film_data.get('posterUrl'),
+            'backdrop_path': film_data.get('coverUrl'),
+            'imdb_id': film_data.get('imdbId'),
+            'name_original': film_data.get('nameOriginal'),
+            'slogan': film_data.get('slogan'),
+            'film_length': film_data.get('filmLength'),
+            'age_rating': self._parse_age_limit(film_data.get('ratingAgeLimits')),
+            'type': film_data.get('type'),
+        }
+
+        # Логика поиска дубликатов:
+        # 1. По kinopoisk_id
+        movie = Movie.objects.filter(kinopoisk_id=film_id).first()
         
-        # Дата выхода
-        release_date = None
-        if film_data.get('year'):
-            try:
-                # Пробуем получить полную дату
-                premiere_world = film_data.get('premiereWorld')
-                premiere_ru = film_data.get('premiereRu')
-                
-                if premiere_world:
-                    release_date = datetime.strptime(premiere_world, '%Y-%m-%d').date()
-                elif premiere_ru:
-                    release_date = datetime.strptime(premiere_ru, '%Y-%m-%d').date()
-                else:
-                    # Используем только год
-                    release_date = datetime(int(film_data['year']), 1, 1).date()
-            except (ValueError, TypeError):
-                release_date = datetime(int(film_data['year']), 1, 1).date()
+        # 2. По названию и году (если нет kinopoisk_id)
+        if not movie:
+            movie = Movie.objects.filter(title__iexact=title, release_date__year=release_date.year).first()
+            if movie:
+                # Нашли дубль -> привязываем ID
+                movie.kinopoisk_id = film_id
+        
+        if movie:
+            # Обновляем
+            for key, value in defaults.items():
+                setattr(movie, key, value)
+            movie.save()
         else:
-            release_date = datetime.now().date()
-        
-        # Рейтинг
-        rating = film_data.get('ratingKinopoisk') or film_data.get('ratingImdb') or 0.0
-        if rating is None:
-            rating = 0.0
-        
-        vote_count = film_data.get('ratingKinopoiskVoteCount') or film_data.get('ratingImdbVoteCount') or 0
-        if vote_count is None:
-            vote_count = 0
-        
-        # Создаём или обновляем фильм
-        movie, created = Movie.objects.update_or_create(
-            title=title,
-            defaults={
-                'overview': overview,
-                'rating': float(rating),
-                'release_date': release_date,
-                'vote_count': int(vote_count),
-                'poster_path': film_data.get('posterUrl'),
-                'backdrop_path': film_data.get('coverUrl'),
-            }
-        )
-        
-        # Добавляем жанры
+            # Создаём
+            defaults['kinopoisk_id'] = film_id
+            defaults['title'] = title
+            defaults['release_date'] = release_date
+            movie = Movie.objects.create(**defaults)
+
+        # Связи M2M
         genres = self._get_or_create_genres(film_data.get('genres', []))
         movie.genres.set(genres)
         
-        # Получаем актёрский состав
-        staff_data = self.get_film_staff(film_id)
+        countries = self._get_or_create_countries(film_data.get('countries', []))
+        movie.countries.set(countries)
+
+        # Актёры
+        actors_data = [s for s in staff_data if s.get('professionKey') == 'ACTOR'][:20]
         
-        # Фильтруем только актёров
-        actors_data = [s for s in staff_data if s.get('professionKey') == 'ACTOR'][:15]  # Берём первых 15
+        # Обновляем каст полностью
+        MovieCast.objects.filter(movie=movie).delete()
         
-        # Удаляем старый актёрский состав если фильм обновляется
-        if not created:
-            MovieCast.objects.filter(movie=movie).delete()
-        
-        # Добавляем актёров
+        movie_casts = []
         for order, actor_data in enumerate(actors_data):
             actor = self._get_or_create_actor(actor_data)
             if actor:
                 character = actor_data.get('description') or 'Неизвестная роль'
-                MovieCast.objects.create(
+                movie_casts.append(MovieCast(
                     movie=movie,
                     actor=actor,
-                    character=character[:255],  # Ограничиваем длину
+                    character=character[:255],
                     order=order
-                )
+                ))
         
+        if movie_casts:
+            MovieCast.objects.bulk_create(movie_casts)
+
         return movie
 
-
-def import_movie_from_kinopoisk(url: str) -> Movie:
-    """
-    Удобная функция для импорта фильма
-    
-    Args:
-        url: URL фильма на Кинопоиске
+    def import_from_url(self, url: str) -> Movie:
+        """
+        Публичный метод импорта (синхронная обертка).
+        Запускает event loop для выполнения асинхронных запросов.
+        """
+        film_id = self.extract_id_from_url(url)
         
-    Returns:
-        Созданный объект Movie
-    """
-    service = KinopoiskService()
-    return service.import_from_url(url)
+        # 1. Получаем данные асинхронно
+        async def fetch_all():
+            async with httpx.AsyncClient() as client:
+                film_task = self.fetch_film_data(client, film_id)
+                staff_task = self.fetch_film_staff(client, film_id)
+                return await asyncio.gather(film_task, staff_task)
+
+        try:
+           film_data, staff_data = async_to_sync(fetch_all)()
+        except Exception as e:
+            # Если async_to_sync не сработает (например внутри другого loop),
+            # можно попробовать asyncio.run, но async_to_sync надежнее для Django.
+             raise KinopoiskImportError(f"Ошибка получения данных: {e}")
+
+        # 2. Сохраняем синхронно (чтобы не блокировать подключение к БД в async контексте без нужды)
+        return self._process_and_save(film_id, film_data, staff_data)

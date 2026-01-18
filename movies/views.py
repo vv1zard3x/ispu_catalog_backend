@@ -42,7 +42,7 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     Поддерживает фильтрацию по жанрам, актёрам, году выхода и рейтингу.
     Поиск по названию и описанию. Сортировка по различным полям.
     """
-    queryset = Movie.objects.prefetch_related('genres', 'cast__actor').all()
+    queryset = Movie.objects.prefetch_related('genres', 'cast__actor', 'countries', 'sources').all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['genres']
     search_fields = ['title', 'overview']

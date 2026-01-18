@@ -60,6 +60,19 @@ class Genre(models.Model):
         return self.name
 
 
+class Country(models.Model):
+    """Страна производства"""
+    name = models.CharField(max_length=100, verbose_name="Название")
+
+    class Meta:
+        verbose_name = "Страна"
+        verbose_name_plural = "Страны"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Actor(models.Model):
     """Актёр"""
     name = models.CharField(max_length=255, verbose_name="Имя")
@@ -69,11 +82,18 @@ class Actor(models.Model):
         null=True, 
         verbose_name="Фото (загрузка)"
     )
+
     profile_path = models.CharField(
         max_length=500, 
         blank=True, 
         null=True, 
         verbose_name="Фото (URL или путь)"
+    )
+    kinopoisk_id = models.IntegerField(
+        unique=True, 
+        blank=True, 
+        null=True, 
+        verbose_name="Кинопоиск ID"
     )
 
     class Meta:
@@ -129,6 +149,26 @@ class Movie(models.Model):
     release_date = models.DateField(verbose_name="Дата выхода")
     vote_count = models.IntegerField(default=0, verbose_name="Количество голосов")
     genres = models.ManyToManyField(Genre, related_name='movies', verbose_name="Жанры")
+    
+    # Новые поля
+    kinopoisk_id = models.IntegerField(
+        unique=True, 
+        blank=True, 
+        null=True, 
+        verbose_name="Кинопоиск ID"
+    )
+    imdb_id = models.CharField(max_length=20, blank=True, null=True, verbose_name="IMDb ID")
+    name_original = models.CharField(max_length=255, blank=True, null=True, verbose_name="Оригинальное название")
+    slogan = models.TextField(blank=True, null=True, verbose_name="Слоган")
+    film_length = models.IntegerField(blank=True, null=True, verbose_name="Продолжительность (мин)")
+    age_rating = models.IntegerField(blank=True, null=True, verbose_name="Возрастной рейтинг")
+    type = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        verbose_name="Тип (FILM, TV_SHOW и т.д.)"
+    )
+    countries = models.ManyToManyField(Country, related_name='movies', verbose_name="Страны", blank=True)
 
     class Meta:
         verbose_name = "Фильм"
@@ -184,7 +224,31 @@ class MovieCast(models.Model):
         return f"{self.actor.name} как {self.character}"
 
 
-class SiteSettings(models.Model):
+class MovieSource(models.Model):
+    """Источник просмотра (ссылка на фильм)"""
+    movie = models.ForeignKey(
+        Movie, 
+        on_delete=models.CASCADE, 
+        related_name='sources',
+        verbose_name="Фильм"
+    )
+    name = models.CharField(max_length=100, verbose_name="Название источника")
+    url = models.URLField(verbose_name="Ссылка")
+    description = models.TextField(blank=True, null=True, verbose_name="Описание/Инструкция")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата добавления")
+
+    class Meta:
+        verbose_name = "Источник"
+        verbose_name_plural = "Источники"
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.movie.title})"
+
+
+from solo.models import SingletonModel
+
+class SiteSettings(SingletonModel):
     """Настройки сайта (singleton)"""
     kinopoisk_api_token = models.CharField(
         max_length=255,
@@ -201,20 +265,9 @@ class SiteSettings(models.Model):
     def __str__(self):
         return "Настройки сайта"
 
-    def save(self, *args, **kwargs):
-        # Singleton pattern - всегда используем id=1
-        self.pk = 1
-        super().save(*args, **kwargs)
-
-    @classmethod
-    def get_settings(cls):
-        """Получает или создаёт единственный экземпляр настроек"""
-        settings, _ = cls.objects.get_or_create(pk=1)
-        return settings
-
     @classmethod
     def get_kinopoisk_token(cls):
         """Возвращает токен Kinopoisk API"""
-        settings = cls.get_settings()
+        settings = cls.get_solo()
         return settings.kinopoisk_api_token
 

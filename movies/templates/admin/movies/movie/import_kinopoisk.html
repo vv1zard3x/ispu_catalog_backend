@@ -90,29 +90,210 @@
 
 <h1>🎬 Импорт фильма с Кинопоиск</h1>
 
-{% if success_message %}
-<div class="success-message">
-    {{ success_message }}
+    {# Сообщения выводятся стандартным механизмом Django admin #}
     {% if movie %}
-    <div class="movie-preview clearfix">
-        {% if movie.get_poster_url %}
-        <img src="{{ movie.get_poster_url }}" alt="{{ movie.title }}">
-        {% endif %}
-        <h3>{{ movie.title }}</h3>
-        <p><strong>Рейтинг:</strong> {{ movie.rating }}</p>
-        <p><strong>Дата выхода:</strong> {{ movie.release_date }}</p>
-        <p><strong>Жанры:</strong> {{ movie.genres.all|join:", " }}</p>
-        <p><a href="{% url 'admin:movies_movie_change' movie.pk %}">Редактировать фильм</a></p>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
+    <div class="result-card">
+        <div class="result-header">
+            <h2>🎉 Фильм успешно импортирован!</h2>
+            <div class="result-actions">
+                <a href="{% url 'admin:movies_movie_change' movie.pk %}" class="button">✏️ Редактировать</a>
+                <a href="{% url 'admin:movies_movie_changelist' %}" class="button" style="background: #79aec8;">📋 К
+                    списку</a>
+            </div>
+        </div>
+    
+        <div class="movie-info">
+            <div class="movie-poster">
+                {% if movie.get_poster_url %}
+                <img src="{{ movie.get_poster_url }}" alt="{{ movie.title }}">
+                {% else %}
+                <div class="no-poster">Нет постера</div>
+                {% endif %}
+            </div>
+            <div class="movie-details">
+                <h3>{{ movie.title }} <small>({{ movie.release_date.year|default:"-" }})</small></h3>
+                {% if movie.name_original %}
+                <div class="meta-row original-title">{{ movie.name_original }}</div>
+                {% endif %}
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <span class="label">Рейтинг:</span>
+                        <span class="value rating-badge">{{ movie.rating }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="label">Длительность:</span>
+                        <span class="value">{{ movie.film_length|default:"-" }} мин.</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="label">Возраст:</span>
+                        <span class="value">{{ movie.age_rating|default:"0" }}+</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="label">Тип:</span>
+                        <span class="value">{{ movie.type|default:"Фильм" }}</span>
+                    </div>
+                </div>
+                
+                <div class="meta-row">
+                    <span class="label">Жанры:</span>
+                    <span class="value">{{ movie.genres.all|join:", " }}</span>
+                </div>
+                
+                <div class="meta-row">
+                    <span class="label">Страны:</span>
+                    <span class="value">{{ movie.countries.all|join:", " }}</span>
+                </div>
+                
+                {% if movie.overview %}
+                <div class="movie-overview">
+                    <h4>Описание</h4>
+                    <p>{{ movie.overview|truncatewords:50 }}</p>
+                </div>
+                {% endif %}
+            </div>
+            </div>
+            </div>
 
-{% if error_message %}
-<div class="error-message">
-    <strong>Ошибка:</strong> {{ error_message }}
-</div>
-{% endif %}
+    <style>
+        .result-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+        }
+    
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+    
+        .result-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #28a745;
+        }
+    
+        .movie-info {
+            display: flex;
+            gap: 24px;
+        }
+    
+        .movie-poster img {
+            width: 150px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    
+        .no-poster {
+            width: 150px;
+            height: 220px;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            border-radius: 6px;
+        }
+    
+        .movie-details h3 {
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 22px;
+            color: #333;
+        }
+    
+        .original-title {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+    
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+        }
+    
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+    
+        .meta-item .label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+    
+        .meta-item .value {
+            font-size: 14px;
+            font-weight: 500;
+        }
+    
+        .rating-badge {
+            color: #d35400;
+            font-weight: bold;
+        }
+    
+        .meta-row {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+    
+        .meta-row .label {
+            font-weight: bold;
+            color: #555;
+            margin-right: 5px;
+        }
+    
+        .movie-overview h4 {
+            font-size: 14px;
+            margin: 15px 0 5px 0;
+            color: #555;
+            text-transform: uppercase;
+        }
+    
+        .movie-overview p {
+            color: #666;
+            line-height: 1.5;
+            margin: 0;
+            font-size: 14px;
+        }
+    
+        .result-actions {
+            display: flex;
+            gap: 10px;
+        }
+    
+        @media (max-width: 600px) {
+            .movie-info {
+                flex-direction: column;
+            }
+    
+            .movie-poster img {
+                width: 100px;
+            }
+    
+            .result-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+    {% endif %}
 
 <form method="post" class="import-form">
     {% csrf_token %}
