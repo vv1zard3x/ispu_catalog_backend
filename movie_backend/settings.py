@@ -185,3 +185,7 @@ JAZZMIN_SETTINGS = {
         "movies.MovieCast": "fas fa-users",
     },
 }
+
+# Kinopoisk API settings
+KINOPOISK_API_TOKEN = os.environ.get('KINOPOISK_API_TOKEN')
+
