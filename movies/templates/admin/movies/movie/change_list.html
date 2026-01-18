@@ -1,0 +1,11 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+<li>
+    <a href="{% url 'admin:movies_movie_import_kinopoisk' %}" class="addlink">
+        🎬 Импорт с Кинопоиск
+    </a>
+</li>
+{{ block.super }}
+{% endblock %}

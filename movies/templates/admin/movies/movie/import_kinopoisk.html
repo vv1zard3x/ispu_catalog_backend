@@ -1,0 +1,138 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block title %}Импорт фильма с Кинопоиск{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='movies' %}">Movies</a>
+    &rsaquo; <a href="{% url 'admin:movies_movie_changelist' %}">Фильмы</a>
+    &rsaquo; Импорт с Кинопоиск
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+    .import-form {
+        max-width: 600px;
+        margin: 20px 0;
+    }
+    .import-form input[type="url"] {
+        width: 100%;
+        padding: 10px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        margin-bottom: 15px;
+    }
+    .import-form input[type="url"]:focus {
+        border-color: #417690;
+        outline: none;
+    }
+    .import-form .submit-row {
+        padding: 12px 0;
+    }
+    .import-form label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #666;
+    }
+    .help-text {
+        color: #888;
+        font-size: 12px;
+        margin-top: -10px;
+        margin-bottom: 15px;
+    }
+    .success-message {
+        background: #dff0d8;
+        border: 1px solid #d0e9c6;
+        color: #3c763d;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    .error-message {
+        background: #f2dede;
+        border: 1px solid #ebccd1;
+        color: #a94442;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    .movie-preview {
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        margin-top: 10px;
+    }
+    .movie-preview img {
+        max-height: 150px;
+        border-radius: 4px;
+        margin-right: 15px;
+        float: left;
+    }
+    .movie-preview h3 {
+        margin: 0 0 10px 0;
+    }
+    .movie-preview p {
+        margin: 5px 0;
+        color: #666;
+    }
+    .clearfix::after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+</style>
+
+<h1>🎬 Импорт фильма с Кинопоиск</h1>
+
+{% if success_message %}
+<div class="success-message">
+    {{ success_message }}
+    {% if movie %}
+    <div class="movie-preview clearfix">
+        {% if movie.get_poster_url %}
+        <img src="{{ movie.get_poster_url }}" alt="{{ movie.title }}">
+        {% endif %}
+        <h3>{{ movie.title }}</h3>
+        <p><strong>Рейтинг:</strong> {{ movie.rating }}</p>
+        <p><strong>Дата выхода:</strong> {{ movie.release_date }}</p>
+        <p><strong>Жанры:</strong> {{ movie.genres.all|join:", " }}</p>
+        <p><a href="{% url 'admin:movies_movie_change' movie.pk %}">Редактировать фильм</a></p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if error_message %}
+<div class="error-message">
+    <strong>Ошибка:</strong> {{ error_message }}
+</div>
+{% endif %}
+
+<form method="post" class="import-form">
+    {% csrf_token %}
+    
+    <label for="kinopoisk_url">URL с Кинопоиска:</label>
+    <input type="url" 
+           name="kinopoisk_url" 
+           id="kinopoisk_url" 
+           placeholder="https://www.kinopoisk.ru/film/435/"
+           value="{{ kinopoisk_url|default:'' }}"
+           required>
+    <p class="help-text">
+        Поддерживаемые форматы: 
+        <code>https://www.kinopoisk.ru/film/435/</code> или 
+        <code>https://www.kinopoisk.ru/series/6058297/</code>
+    </p>
+    
+    <div class="submit-row">
+        <input type="submit" value="Импортировать" class="default">
+        <a href="{% url 'admin:movies_movie_changelist' %}" class="closelink">Отмена</a>
+    </div>
+</form>
+{% endblock %}

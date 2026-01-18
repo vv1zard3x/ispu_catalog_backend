@@ -1,6 +1,10 @@
 from django.contrib import admin
+from django.urls import path
+from django.shortcuts import render, redirect
+from django.contrib import messages
 from django.utils.html import format_html
 from .models import Genre, Actor, Movie, MovieCast
+from .kinopoisk import KinopoiskService, KinopoiskImportError
 
 
 class MovieCastInline(admin.TabularInline):
@@ -63,6 +67,46 @@ class MovieAdmin(admin.ModelAdmin):
     inlines = [MovieCastInline]
     date_hierarchy = 'release_date'
     readonly_fields = ['poster_preview_large', 'backdrop_preview_large']
+    change_list_template = 'admin/movies/movie/change_list.html'
+
+    def get_urls(self):
+        """Добавляем кастомный URL для импорта с Кинопоиска"""
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'import-kinopoisk/',
+                self.admin_site.admin_view(self.import_kinopoisk_view),
+                name='movies_movie_import_kinopoisk'
+            ),
+        ]
+        return custom_urls + urls
+
+    def import_kinopoisk_view(self, request):
+        """View для импорта фильма с Кинопоиска"""
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Импорт с Кинопоиск',
+            'opts': self.model._meta,
+        }
+
+        if request.method == 'POST':
+            kinopoisk_url = request.POST.get('kinopoisk_url', '').strip()
+            context['kinopoisk_url'] = kinopoisk_url
+
+            if kinopoisk_url:
+                try:
+                    service = KinopoiskService()
+                    movie = service.import_from_url(kinopoisk_url)
+                    context['success_message'] = f'Фильм "{movie.title}" успешно импортирован!'
+                    context['movie'] = movie
+                except KinopoiskImportError as e:
+                    context['error_message'] = str(e)
+                except Exception as e:
+                    context['error_message'] = f'Неожиданная ошибка: {e}'
+            else:
+                context['error_message'] = 'Введите URL с Кинопоиска'
+
+        return render(request, 'admin/movies/movie/import_kinopoisk.html', context)
 
     def poster_preview(self, obj):
         url = obj.get_poster_url()
